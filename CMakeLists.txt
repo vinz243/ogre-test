@@ -106,17 +106,18 @@ set(SRCS
 	./TutorialApplication.cpp
 )
  
-include_directories( ${OIS_INCLUDE_DIRS}
+include_directories(
+	${OIS_INCLUDE_DIRS}
 	${OGRE_INCLUDE_DIRS}
 	${OGRE_SAMPLES_INCLUDEPATH}
 	${OGRE_Overlay_INCLUDE_DIRS}
 )
- 
 add_executable(OgreApp WIN32 ${HDRS} ${SRCS})
  
 set_target_properties(OgreApp PROPERTIES DEBUG_POSTFIX _d)
- 
-target_link_libraries(OgreApp ${OGRE_LIBRARIES} ${OIS_LIBRARIES} ${OGRE_Overlay_LIBRARIES})
+set(Boost_LIBRARIES "C:/OgreSDK/boost/lib/libboost_system-vc120-mt-gd-1_55.lib")
+MESSAGE(STATUS "Boost_LIBRARIES=${Boost_LIBRARIES}")
+target_link_libraries(OgreApp ${OGRE_LIBRARIES} ${OIS_LIBRARIES} ${OGRE_Overlay_LIBRARIES} ${Boost_LIBRARIES})
  
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/dist/bin)
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/dist/media)
