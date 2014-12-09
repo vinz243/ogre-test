@@ -17,14 +17,44 @@
 cmake_minimum_required(VERSION 2.6)
  
 project(OgreApp)
- 
+message(${CMAKE_SOURCE_DIR})
 if(WIN32)
-	set(CMAKE_MODULE_PATH "$ENV{OGRE_HOME}/CMake/;${CMAKE_MODULE_PATH}")
+	set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMAKE;$ENV{OGRE_HOME}/CMake/;${CMAKE_MODULE_PATH}")
 	set(OGRE_SAMPLES_INCLUDEPATH
 		$ENV{OGRE_HOME}/Samples/include
 	)
 endif(WIN32)
- 
+# include("${CMAKE_SOURCE_DIR}/CMAKE/FindPhysX.cmake")
+# physics (physx)
+# if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  set(PHYSX_LIB_SUFFIX "DEBUG")
+# endif()
+set( PHYSX_ROOT "C:/PhysX"  )
+set( LIB_SUFFIX 32 )
+IF(NOT EXISTS ${PHYSX_ROOT})
+  message(FATAL_ERROR "physx root directory does not exist: ${PHYSX_ROOT}")
+endif ()
+
+FIND_PATH(
+  PHYSX_INCLUDE_DIR PxPhysicsAPI.h
+  PATHS ${PHYSX_ROOT}
+  PATH_SUFFIXES "" "Include"
+  DOC "physx include directory")
+set (INCLUDES ${INCLUDES}
+  ${PHYSX_INCLUDE_DIR}
+)
+
+set(PHYSX_LIBRARIES_TO_FIND PhysX3 PhysX3Common PhysX3Cooking PhysX3Extensions PhysXProfileSDK PxTask PhysXVisualDebuggerSDK)
+foreach(LIB_TO_FIND ${PHYSX_LIBRARIES_TO_FIND})
+  FIND_LIBRARY(
+    PHYSX_LIBRARY_${LIB_TO_FIND}
+    NAMES "${LIB_TO_FIND}${PHYSX_LIB_SUFFIX}" "${LIB_TO_FIND}${PHYSX_LIB_SUFFIX}_x86"
+    HINTS ${PHYSX_INCLUDE_DIR}/..
+    PATH_SUFFIXES "lib${LIB_SUFFIX}" "Lib/vc12win${LIB_SUFFIX}")
+  set (LIBS_PHYSX ${LIBS_PHYSX}
+    ${PHYSX_LIBRARY_${LIB_TO_FIND}}
+  )
+  endforeach()
 if(UNIX)
 	if(EXISTS "/usr/local/lib/OGRE/cmake")
 
@@ -107,6 +137,7 @@ set(SRCS
 )
  
 include_directories(
+	${PHYSX_INCLUDE_DIR}
 	${OIS_INCLUDE_DIRS}
 	${OGRE_INCLUDE_DIRS}
 	${OGRE_SAMPLES_INCLUDEPATH}
@@ -117,7 +148,7 @@ add_executable(OgreApp WIN32 ${HDRS} ${SRCS})
 set_target_properties(OgreApp PROPERTIES DEBUG_POSTFIX _d)
 set(Boost_LIBRARIES "C:/OgreSDK/boost/lib/libboost_system-vc120-mt-gd-1_55.lib")
 MESSAGE(STATUS "Boost_LIBRARIES=${Boost_LIBRARIES}")
-target_link_libraries(OgreApp ${OGRE_LIBRARIES} ${OIS_LIBRARIES} ${OGRE_Overlay_LIBRARIES} ${Boost_LIBRARIES})
+target_link_libraries(OgreApp ${OGRE_LIBRARIES} ${OIS_LIBRARIES} ${OGRE_Overlay_LIBRARIES} ${Boost_LIBRARIES} ${LIBS_PHYSX})
  
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/dist/bin)
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/dist/media)

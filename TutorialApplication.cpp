@@ -15,6 +15,38 @@ This source file is part of the
 -----------------------------------------------------------------------------
 */
 #include "TutorialApplication.h"
+#include <PxPhysicsAPI.h> //Single header file to include all features of PhysX API 
+
+
+//-------Loading PhysX libraries (32bit only)----------//
+
+#ifdef _DEBUG //If in 'Debug' load libraries for debug mode 
+#pragma comment(lib, "PhysX3DEBUG_x86.lib")             //Always be needed  
+#pragma comment(lib, "PhysX3CommonDEBUG_x86.lib")       //Always be needed
+#pragma comment(lib, "PhysX3ExtensionsDEBUG.lib")       //PhysX extended library 
+#pragma comment(lib, "PhysXVisualDebuggerSDKDEBUG.lib") //For PVD only 
+
+#else //Else load libraries for 'Release' mode
+#pragma comment(lib, "PhysX3_x86.lib")  
+#pragma comment(lib, "PhysX3Common_x86.lib") 
+#pragma comment(lib, "PhysX3Extensions.lib")
+#pragma comment(lib, "PhysXVisualDebuggerSDK.lib")
+#endif
+
+using namespace std;
+using namespace physx; 
+
+
+//--------------Global variables--------------//
+static PxPhysics*               gPhysicsSDK = NULL;         //Instance of PhysX SDK
+static PxFoundation*            gFoundation = NULL;         //Instance of singleton foundation SDK class
+static PxDefaultErrorCallback   gDefaultErrorCallback;      //Instance of default implementation of the error callback
+static PxDefaultAllocator       gDefaultAllocatorCallback;  //Instance of default implementation of the allocator interface required by the SDK
+
+PxScene*                        gScene = NULL;              //Instance of PhysX Scene               
+PxReal                          gTimeStep = 1.0f/60.0f;     //Time-step value for PhysX simulation 
+PxRigidDynamic                  *gBox = NULL;               //Instance of box actor 
+
 
 //-------------------------------------------------------------------------------------
 TutorialApplication::TutorialApplication(void)
@@ -33,7 +65,7 @@ void TutorialApplication::createScene(void)
     mSceneMgr->setAmbientLight(Ogre::ColourValue(0.5f, 0.5f, 0.5f));
  
     // Create an Entity
-    Ogre::Entity* ogreHead = mSceneMgr->createEntity("Head", "ogrehead.mesh");
+    Ogre::Entity* ogreHead = mSceneMgr->createEntity("Head", "sphere.mesh");
  
     // Create a SceneNode and attach the Entity to it
     Ogre::SceneNode* headNode = mSceneMgr->getRootSceneNode()->createChildSceneNode("HeadNode");
