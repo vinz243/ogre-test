@@ -15,40 +15,8 @@ This source file is part of the
 -----------------------------------------------------------------------------
 */
 #include "TutorialApplication.h"
-#include <PxPhysicsAPI.h> //Single header file to include all features of PhysX API 
 
 
-//-------Loading PhysX libraries (32bit only)----------//
-
-#ifdef _DEBUG //If in 'Debug' load libraries for debug mode 
-#pragma comment(lib, "PhysX3DEBUG_x86.lib")             //Always be needed  
-#pragma comment(lib, "PhysX3CommonDEBUG_x86.lib")       //Always be needed
-#pragma comment(lib, "PhysX3ExtensionsDEBUG.lib")       //PhysX extended library 
-#pragma comment(lib, "PhysXVisualDebuggerSDKDEBUG.lib") //For PVD only 
-
-#else //Else load libraries for 'Release' mode
-#pragma comment(lib, "PhysX3_x86.lib")  
-#pragma comment(lib, "PhysX3Common_x86.lib") 
-#pragma comment(lib, "PhysX3Extensions.lib")
-#pragma comment(lib, "PhysXVisualDebuggerSDK.lib")
-#endif
-
-using namespace std;
-using namespace physx; 
-
-
-//--------------Global variables--------------//
-static PxPhysics*               gPhysicsSDK = NULL;         //Instance of PhysX SDK
-static PxFoundation*            gFoundation = NULL;         //Instance of singleton foundation SDK class
-static PxDefaultErrorCallback   gDefaultErrorCallback;      //Instance of default implementation of the error callback
-static PxDefaultAllocator       gDefaultAllocatorCallback;  //Instance of default implementation of the allocator interface required by the SDK
-
-PxScene*                        gScene = NULL;              //Instance of PhysX Scene               
-PxReal                          gTimeStep = 1.0f/60.0f;     //Time-step value for PhysX simulation 
-PxRigidDynamic                  *gBox = NULL;               //Instance of box actor 
-
-
-//-------------------------------------------------------------------------------------
 TutorialApplication::TutorialApplication(void)
 {
 }
@@ -60,16 +28,30 @@ TutorialApplication::~TutorialApplication(void)
 //-------------------------------------------------------------------------------------
 void TutorialApplication::createScene(void)
 {
-    
+    mRoot->addFrameListener(this);
     // Set the scene's ambient light
     mSceneMgr->setAmbientLight(Ogre::ColourValue(0.5f, 0.5f, 0.5f));
+    mSceneMgr->setShadowTechnique(Ogre::SHADOWTYPE_STENCIL_ADDITIVE);
  
     // Create an Entity
-    Ogre::Entity* ogreHead = mSceneMgr->createEntity("Head", "sphere.mesh");
+    mOgreHead = mSceneMgr->createEntity("Head", "cube.mesh");
+    mOgreHead->setCastShadows(true);
  
     // Create a SceneNode and attach the Entity to it
-    Ogre::SceneNode* headNode = mSceneMgr->getRootSceneNode()->createChildSceneNode("HeadNode");
-    headNode->attachObject(ogreHead);
+    mHeadNode = mSceneMgr->getRootSceneNode()->createChildSceneNode("HeadNode");
+    mHeadNode->setPosition(Ogre::Vector3(0.0f, 100.0f, 0.0f));
+    mHeadNode->attachObject(mOgreHead); 
+    mHeadNode->scale(.5, .5, .5);
+    Ogre::Plane plane(Ogre::Vector3::UNIT_Y, 0);
+ 
+    Ogre::MeshManager::getSingleton().createPlane("ground", Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME,
+        plane, 1500, 1500, 20, 20, true, 1, 5, 5, Ogre::Vector3::UNIT_Z);
+ 
+    Ogre::Entity* entGround = mSceneMgr->createEntity("GroundEntity", "ground");
+    mSceneMgr->getRootSceneNode()->createChildSceneNode()->attachObject(entGround);
+ 
+    entGround->setMaterialName("Examples/Rockwall");
+    entGround->setCastShadows(false);
  
     // Create a Light and set its position
     Ogre::Light* light = mSceneMgr->createLight("MainLight");
@@ -77,6 +59,125 @@ void TutorialApplication::createScene(void)
 }
 
 
+void InitPhysX() 
+{
+    //Creating foundation for PhysX
+    gFoundation = PxCreateFoundation(PX_PHYSICS_VERSION, gDefaultAllocatorCallback, gDefaultErrorCallback);
+    
+    //Creating instance of PhysX SDK
+    gPhysicsSDK = PxCreatePhysics(PX_PHYSICS_VERSION, *gFoundation, PxTolerancesScale() );
+
+    if(gPhysicsSDK == NULL) 
+    {
+        cerr<<"Error creating PhysX3 device, Exiting..."<<endl;
+        exit(1);
+    }
+
+
+    //Creating scene
+    PxSceneDesc sceneDesc(gPhysicsSDK->getTolerancesScale());   //Descriptor class for scenes 
+
+    sceneDesc.gravity       = PxVec3(0.0f, -9.8f, 0.0f);        //Setting gravity
+    sceneDesc.cpuDispatcher = PxDefaultCpuDispatcherCreate(1);  //Creates default CPU dispatcher for the scene
+    sceneDesc.filterShader  = PxDefaultSimulationFilterShader;  //Creates default collision filter shader for the scene
+    
+    gScene = gPhysicsSDK->createScene(sceneDesc);               //Creates a scene 
+    
+    
+    //Creating PhysX material
+    PxMaterial* material = gPhysicsSDK->createMaterial(0.5,0.5,0.5); //Creating a PhysX materia
+    
+    
+    //---------Creating actors-----------]
+    
+    //1-Creating static plane    
+    PxTransform planePos =  PxTransform(PxVec3(0.0f), PxQuat(PxHalfPi, PxVec3(0.0f, 0.0f, 1.0f)));   //Position and orientation(transform) for plane actor  
+    PxRigidStatic* plane =  gPhysicsSDK->createRigidStatic(planePos);                               //Creating rigid static actor   
+    plane->createShape(PxPlaneGeometry(), *material);                                               //Defining geometry for plane actor
+    gScene->addActor(*plane);                                                                       //Adding plane actor to PhysX scene
+
+
+    //2-Creating dynamic cube                                                                        
+    PxTransform     boxPos(PxVec3(0.0f, 100.0f, 0.0f));                                              //Position and orientation(transform) for box actor 
+    PxBoxGeometry   boxGeometry(PxVec3(2,2,2));                                         //Defining geometry for box actor
+                    gBox = PxCreateDynamic(*gPhysicsSDK, boxPos, boxGeometry, *material, 1.0f);     //Creating rigid static actor
+                    gScene->addActor(*gBox);                                                        //Adding box actor to PhysX scene
+
+
+
+}
+
+void StepPhysX()                    //Stepping PhysX
+{ 
+    gScene->simulate(mStepSize);    //Advances the simulation by 'gTimeStep' time
+    gScene->fetchResults(true);     //Block until the simulation run is completed
+} 
+
+
+void ShutdownPhysX()                //Shutdown PhysX
+{
+    gPhysicsSDK->release();         //Removes any actors,  particle systems, and constraint shaders from this scene
+    gFoundation->release();         //Destroys the instance of foundation SDK
+}
+
+void ConnectPVD()                   //Function for the visualization of PhysX simulation (Optional and 'Debug' mode only) 
+{
+    // check if PvdConnection manager is available on this platform
+    if(gPhysicsSDK->getPvdConnectionManager() == NULL)
+        return;
+
+    // setup connection parameters
+    const char*     pvd_host_ip = "127.0.0.1";  // IP of the PC which is running PVD
+    int             port        = 5425;         // TCP port to connect to, where PVD is listening
+    unsigned int    timeout     = 100;          // timeout in milliseconds to wait for PVD to respond,
+                                                // consoles and remote PCs need a higher timeout.
+    PxVisualDebuggerConnectionFlags connectionFlags = PxVisualDebuggerExt::getAllConnectionFlags();
+
+    // and now try to connect
+    debugger::comm::PvdConnection* theConnection = PxVisualDebuggerExt::createConnection(gPhysicsSDK->getPvdConnectionManager(),
+    pvd_host_ip, port, timeout, connectionFlags);
+
+}
+void PhysXStep(Ogre::Real stepSize)
+{
+  
+    gScene->simulate(stepSize);
+    gScene->fetchResults(true);
+   
+}
+bool PhysXUpdate(const Ogre::Real timeSinceLastUpdate)
+{   
+   mAccumulator += timeSinceLastUpdate; 
+
+   while (mAccumulator >= mStepSize) 
+   { 
+      mAccumulator -= mStepSize; 
+      PhysXStep(mStepSize);
+   }
+
+   return(true);
+}
+
+bool TutorialApplication::frameRenderingQueued(const Ogre::FrameEvent& evt) {
+
+    // System.Threading.Thread.Sleep( 1 );
+    //Step PhysX simulation
+    if(gScene)
+        PhysXUpdate(evt.timeSinceLastFrame); 
+     
+    //Get current position of actor(box) and print it
+    PxVec3 boxPos = gBox->getGlobalPose().p;
+    mHeadNode->setPosition(Ogre::Vector3(boxPos.x, boxPos.y, boxPos.z));
+    return(true);
+}
+
+
+
+
+
+
+
+//----------------------------------------------
 
 #if OGRE_PLATFORM == OGRE_PLATFORM_WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -95,6 +196,7 @@ extern "C" {
     {
         // Create application object
         TutorialApplication app;
+        InitPhysX();  //Initialize PhysX then create scene and actors
 
         try {
             app.go();
@@ -106,10 +208,17 @@ extern "C" {
                 e.getFullDescription().c_str() << std::endl;
 #endif
         }
+        //ConnectPVD(); //Uncomment this function to visualize  the simulation in PVD
 
+
+
+        //Shut down PhysX
+        ShutdownPhysX(); 
+        // _getch();
         return 0;
     }
 
 #ifdef __cplusplus
 }
+
 #endif
