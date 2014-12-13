@@ -125,15 +125,16 @@ if (NOT OGRE_BUILD_PLATFORM_IPHONE)
 	add_definitions(-DBOOST_ALL_NO_LIB)
 	set(OGRE_LIBRARIES ${OGRE_LIBRARIES} ${Boost_LIBRARIES})
 endif()
- 
 set(HDRS
 	./BaseApplication.h
 	./TutorialApplication.h
+	./Entity.h
 )
  
 set(SRCS
 	./BaseApplication.cpp
 	./TutorialApplication.cpp
+	./Entity.cpp
 )
  
 include_directories(

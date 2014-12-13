@@ -19,22 +19,28 @@ This source file is part of the
 
 #include "BaseApplication.h"
 #include <PxPhysicsAPI.h> //Single header file to include all features of PhysX API 
+#include "Entity.h"
+
+#if OGRE_PLATFORM == OGRE_PLATFORM_WIN32
+#define WIN32_LEAN_AND_MEAN
+#include "windows.h"
+#endif
 
 
 //-------Loading PhysX libraries (32bit only)----------//
 
-#ifdef _DEBUG //If in 'Debug' load libraries for debug mode 
-#pragma comment(lib, "PhysX3DEBUG_x86.lib")             //Always be needed  
-#pragma comment(lib, "PhysX3CommonDEBUG_x86.lib")       //Always be needed
-#pragma comment(lib, "PhysX3ExtensionsDEBUG.lib")       //PhysX extended library 
-#pragma comment(lib, "PhysXVisualDebuggerSDKDEBUG.lib") //For PVD only 
+// #ifdef _DEBUG //If in 'Debug' load libraries for debug mode 
+// #pragma comment(lib, "PhysX3DEBUG_x86.lib")             //Always be needed  
+// #pragma comment(lib, "PhysX3CommonDEBUG_x86.lib")       //Always be needed
+// #pragma comment(lib, "PhysX3ExtensionsDEBUG.lib")       //PhysX extended library 
+// #pragma comment(lib, "PhysXVisualDebuggerSDKDEBUG.lib") //For PVD only 
 
-#else //Else load libraries for 'Release' mode
-#pragma comment(lib, "PhysX3_x86.lib")  
-#pragma comment(lib, "PhysX3Common_x86.lib") 
-#pragma comment(lib, "PhysX3Extensions.lib")
-#pragma comment(lib, "PhysXVisualDebuggerSDK.lib")
-#endif
+// #else //Else load libraries for 'Release' mode
+// #pragma comment(lib, "PhysX3_x86.lib")  
+// #pragma comment(lib, "PhysX3Common_x86.lib") 
+// #pragma comment(lib, "PhysX3Extensions.lib")
+// #pragma comment(lib, "PhysXVisualDebuggerSDK.lib")
+// #endif
 
 using namespace std;
 using namespace physx; 
@@ -53,24 +59,29 @@ protected:
     virtual bool frameRenderingQueued(const Ogre::FrameEvent& evt);
 };
 
-void InitPhysX();		//Initialize the PhysX SDK and create two actors. 
-void StepPhysX();		//Step PhysX simulation 300 times.
-void ShutdownPhysX();	//Shutdown PhysX SDK
-void PhysXStep(Ogre::Real stepSize);
-bool PhysXUpdate(const Ogre::Real timeSinceLastUpdate);
-void ConnectPVD();		//Function for the visualization of PhysX simulation (Optional and 'Debug' mode only) 
+void initPhysX(bool pvd);
+void shutdownPhysX();
+void fatalError(string error);
+bool advancePhysX(Ogre::Real dt);
 
-//--------------Global variables--------------//
-static PxPhysics*               gPhysicsSDK = NULL;         //Instance of PhysX SDK
-static PxFoundation*            gFoundation = NULL;         //Instance of singleton foundation SDK class
-static PxDefaultErrorCallback   gDefaultErrorCallback;      //Instance of default implementation of the error callback
-static PxDefaultAllocator       gDefaultAllocatorCallback;  //Instance of default implementation of the allocator interface required by the SD
+static PxDefaultErrorCallback 			gDefaultErrorCallback;
+static PxDefaultAllocator 				  gDefaultAllocatorCallback;
+static PxMaterial*						      mMaterial;
+static PxPhysics* 						      mPhysics;                                                  
+static PxFoundation* 					      mFoundation;                                      
+static PxCooking*						        mCooking;
+static PxProfileZoneManager*		  	mProfileZoneManager;
+static PxScene*						          mScene;
+static PxCudaContextManager*		  	mCudaContextManager;
+static PxCudaContextManagerDesc 		cudaContextManagerDesc;
+static PxCpuDispatcher*				     	mCpuDispatcher;
+Ogre::Real 						              mAccumulator = 0;
+Ogre::Real 					              	mStepSize = 1.0f/60.0f;
+PxScene*                            gScene = NULL;
+Ogre::Entity*                       mOgreHead= NULL;
+Ogre::SceneNode*                    mHeadNode = NULL;
+vector<Entity>                      mEntities;
+// Entity                              mEntity;
 
-Ogre::Real 						mAccumulator = 0;
-Ogre::Real 						mStepSize = 1.0f/60.0f;
-PxScene*                        gScene = NULL;              //Instance of PhysX Scene               
-PxRigidDynamic                  *gBox = NULL;               //Instance of box actor 
-Ogre::Entity*                   mOgreHead= NULL;
-Ogre::SceneNode*                mHeadNode = NULL;
-//-------------------------------------------------------------------------------------
+
 #endif // #ifndef __TutorialApplication_h_

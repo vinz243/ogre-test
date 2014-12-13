@@ -27,21 +27,34 @@ TutorialApplication::~TutorialApplication(void)
 
 //-------------------------------------------------------------------------------------
 void TutorialApplication::createScene(void)
-{
+{   
+    float scale = 1.5f;
+
+    for(int i = 0 ; i < 25 ; i++ ){
+        ostringstream nameStream;
+        nameStream << "Sphere_" << i;
+        string name = nameStream.str();
+        Entity sphere = Entity(Ogre::Vector3((i + 1) * scale, (i + 1) * scale, (i + 1) * scale), Ogre::Vector3((i + 1 + rand() % 100) * 5, (i + 1 + rand() % 100) * 4.5, (i + 1 + rand() % 100) * 6), "sphere.mesh", name);
+        sphere.init(mSceneMgr, mPhysics, gScene, PxVec3(rand() % 50 - 25, rand() % 50 - 25,  rand() % 50 - 25));
+        mEntities.push_back(sphere);
+
+    }
+    for(int i = 0 ; i < 25 ; i++ ){
+        ostringstream nameStream;
+        nameStream << "Cube_" << i;
+        string name = nameStream.str();
+        Entity cube = Entity(Ogre::Vector3((i + 1) * scale, (i + 1) * scale, (i + 1) * scale), Ogre::Vector3((i + 1 + rand() % 100) * 5, (i + 1 + rand() % 100) * 4.5, (i + 1 + rand() % 100) * 6), "cube.mesh", name);
+        cube.init(mSceneMgr, mPhysics, gScene, PxVec3(rand() % 20 - 10, rand() % 20 - 10,  rand() % 20 - 10));
+        mEntities.push_back(cube);
+
+    }
+
     mRoot->addFrameListener(this);
     // Set the scene's ambient light
     mSceneMgr->setAmbientLight(Ogre::ColourValue(0.5f, 0.5f, 0.5f));
     mSceneMgr->setShadowTechnique(Ogre::SHADOWTYPE_STENCIL_ADDITIVE);
  
-    // Create an Entity
-    mOgreHead = mSceneMgr->createEntity("Head", "cube.mesh");
-    mOgreHead->setCastShadows(true);
- 
-    // Create a SceneNode and attach the Entity to it
-    mHeadNode = mSceneMgr->getRootSceneNode()->createChildSceneNode("HeadNode");
-    mHeadNode->setPosition(Ogre::Vector3(0.0f, 100.0f, 0.0f));
-    mHeadNode->attachObject(mOgreHead); 
-    mHeadNode->scale(.5, .5, .5);
+    
     Ogre::Plane plane(Ogre::Vector3::UNIT_Y, 0);
  
     Ogre::MeshManager::getSingleton().createPlane("ground", Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME,
@@ -59,130 +72,191 @@ void TutorialApplication::createScene(void)
 }
 
 
-void InitPhysX() 
-{
-    //Creating foundation for PhysX
-    gFoundation = PxCreateFoundation(PX_PHYSICS_VERSION, gDefaultAllocatorCallback, gDefaultErrorCallback);
-    
-    //Creating instance of PhysX SDK
-    gPhysicsSDK = PxCreatePhysics(PX_PHYSICS_VERSION, *gFoundation, PxTolerancesScale() );
+bool TutorialApplication::frameRenderingQueued(const Ogre::FrameEvent& evt) {
+    if(mWindow->isClosed())
+        return false;
 
-    if(gPhysicsSDK == NULL) 
+    if(mShutDown)
+        return false;
+
+    //Need to capture/update each device
+    mKeyboard->capture();
+    mMouse->capture();
+
+    mTrayMgr->frameRenderingQueued(evt);
+
+    if (!mTrayMgr->isDialogVisible())
     {
-        cerr<<"Error creating PhysX3 device, Exiting..."<<endl;
-        exit(1);
+        mCameraMan->frameRenderingQueued(evt);   // if dialog isn't up, then update the camera
+        if (mDetailsPanel->isVisible())   // if details panel is visible, then update its contents
+        {
+            mDetailsPanel->setParamValue(0, Ogre::StringConverter::toString(mCamera->getDerivedPosition().x));
+            mDetailsPanel->setParamValue(1, Ogre::StringConverter::toString(mCamera->getDerivedPosition().y));
+            mDetailsPanel->setParamValue(2, Ogre::StringConverter::toString(mCamera->getDerivedPosition().z));
+            mDetailsPanel->setParamValue(4, Ogre::StringConverter::toString(mCamera->getDerivedOrientation().w));
+            mDetailsPanel->setParamValue(5, Ogre::StringConverter::toString(mCamera->getDerivedOrientation().x));
+            mDetailsPanel->setParamValue(6, Ogre::StringConverter::toString(mCamera->getDerivedOrientation().y));
+            mDetailsPanel->setParamValue(7, Ogre::StringConverter::toString(mCamera->getDerivedOrientation().z));
+        }
     }
 
+    if(gScene)    if(mWindow->isClosed())
+        return false;
 
-    //Creating scene
-    PxSceneDesc sceneDesc(gPhysicsSDK->getTolerancesScale());   //Descriptor class for scenes 
+    if(mShutDown)
+        return false;
 
-    sceneDesc.gravity       = PxVec3(0.0f, -9.8f, 0.0f);        //Setting gravity
-    sceneDesc.cpuDispatcher = PxDefaultCpuDispatcherCreate(1);  //Creates default CPU dispatcher for the scene
-    sceneDesc.filterShader  = PxDefaultSimulationFilterShader;  //Creates default collision filter shader for the scene
-    
-    gScene = gPhysicsSDK->createScene(sceneDesc);               //Creates a scene 
-    
-    
-    //Creating PhysX material
-    PxMaterial* material = gPhysicsSDK->createMaterial(0.5,0.5,0.5); //Creating a PhysX materia
-    
-    
-    //---------Creating actors-----------]
-    
-    //1-Creating static plane    
-    PxTransform planePos =  PxTransform(PxVec3(0.0f), PxQuat(PxHalfPi, PxVec3(0.0f, 0.0f, 1.0f)));   //Position and orientation(transform) for plane actor  
-    PxRigidStatic* plane =  gPhysicsSDK->createRigidStatic(planePos);                               //Creating rigid static actor   
-    plane->createShape(PxPlaneGeometry(), *material);                                               //Defining geometry for plane actor
-    gScene->addActor(*plane);                                                                       //Adding plane actor to PhysX scene
+    //Need to capture/update each device
+    mKeyboard->capture();
+    mMouse->capture();
 
+    mTrayMgr->frameRenderingQueued(evt);
 
-    //2-Creating dynamic cube                                                                        
-    PxTransform     boxPos(PxVec3(0.0f, 100.0f, 0.0f));                                              //Position and orientation(transform) for box actor 
-    PxBoxGeometry   boxGeometry(PxVec3(2,2,2));                                         //Defining geometry for box actor
-                    gBox = PxCreateDynamic(*gPhysicsSDK, boxPos, boxGeometry, *material, 1.0f);     //Creating rigid static actor
-                    gScene->addActor(*gBox);                                                        //Adding box actor to PhysX scene
+    if (!mTrayMgr->isDialogVisible())
+    {
+        mCameraMan->frameRenderingQueued(evt);   // if dialog isn't up, then update the camera
+        if (mDetailsPanel->isVisible())   // if details panel is visible, then update its contents
+        {
+            mDetailsPanel->setParamValue(0, Ogre::StringConverter::toString(mCamera->getDerivedPosition().x));
+            mDetailsPanel->setParamValue(1, Ogre::StringConverter::toString(mCamera->getDerivedPosition().y));
+            mDetailsPanel->setParamValue(2, Ogre::StringConverter::toString(mCamera->getDerivedPosition().z));
+            mDetailsPanel->setParamValue(4, Ogre::StringConverter::toString(mCamera->getDerivedOrientation().w));
+            mDetailsPanel->setParamValue(5, Ogre::StringConverter::toString(mCamera->getDerivedOrientation().x));
+            mDetailsPanel->setParamValue(6, Ogre::StringConverter::toString(mCamera->getDerivedOrientation().y));
+            mDetailsPanel->setParamValue(7, Ogre::StringConverter::toString(mCamera->getDerivedOrientation().z));
+        }
+    }
 
+    advancePhysX(evt.timeSinceLastFrame);
 
-
-}
-
-void StepPhysX()                    //Stepping PhysX
-{ 
-    gScene->simulate(mStepSize);    //Advances the simulation by 'gTimeStep' time
-    gScene->fetchResults(true);     //Block until the simulation run is completed
-} 
-
-
-void ShutdownPhysX()                //Shutdown PhysX
-{
-    gPhysicsSDK->release();         //Removes any actors,  particle systems, and constraint shaders from this scene
-    gFoundation->release();         //Destroys the instance of foundation SDK
-}
-
-void ConnectPVD()                   //Function for the visualization of PhysX simulation (Optional and 'Debug' mode only) 
-{
-    // check if PvdConnection manager is available on this platform
-    if(gPhysicsSDK->getPvdConnectionManager() == NULL)
-        return;
-
-    // setup connection parameters
-    const char*     pvd_host_ip = "127.0.0.1";  // IP of the PC which is running PVD
-    int             port        = 5425;         // TCP port to connect to, where PVD is listening
-    unsigned int    timeout     = 100;          // timeout in milliseconds to wait for PVD to respond,
-                                                // consoles and remote PCs need a higher timeout.
-    PxVisualDebuggerConnectionFlags connectionFlags = PxVisualDebuggerExt::getAllConnectionFlags();
-
-    // and now try to connect
-    debugger::comm::PvdConnection* theConnection = PxVisualDebuggerExt::createConnection(gPhysicsSDK->getPvdConnectionManager(),
-    pvd_host_ip, port, timeout, connectionFlags);
-
-}
-void PhysXStep(Ogre::Real stepSize)
-{
-  
-    gScene->simulate(stepSize);
     gScene->fetchResults(true);
-   
-}
-bool PhysXUpdate(const Ogre::Real timeSinceLastUpdate)
-{   
-   mAccumulator += timeSinceLastUpdate; 
+    
+    for(int i = 0 ; i < mEntities.size(); i++) {
+        mEntities[i].update(evt.timeSinceLastFrame);
 
-   while (mAccumulator >= mStepSize) 
-   { 
-      mAccumulator -= mStepSize; 
-      PhysXStep(mStepSize);
-   }
-
-   return(true);
-}
-
-bool TutorialApplication::frameRenderingQueued(const Ogre::FrameEvent& evt) {
-
-    // System.Threading.Thread.Sleep( 1 );
-    //Step PhysX simulation
-    if(gScene)
-        PhysXUpdate(evt.timeSinceLastFrame); 
-     
-    //Get current position of actor(box) and print it
-    PxVec3 boxPos = gBox->getGlobalPose().p;
-    mHeadNode->setPosition(Ogre::Vector3(boxPos.x, boxPos.y, boxPos.z));
+    }
     return(true);
 }
 
+void initPhysX(bool pvd) {
+
+    mFoundation = PxCreateFoundation(PX_PHYSICS_VERSION, gDefaultAllocatorCallback, gDefaultErrorCallback);
+    if (!mFoundation)
+        fatalError("PxCreateFoundation failed!");
+    
+    // if (pvd) {
+    //     mProfileZoneManager = &PxProfileZoneManager::createProfileZoneManager(mFoundation);
+    //     if(!mProfileZoneManager)
+    //         fatalError("PxProfileZoneManager::createProfileZoneManager failed!");
+    // }
+
+    // Creates the Top-level PhysX obbject
+    bool recordMemoryAllocations = true;
+    mPhysics = PxCreatePhysics(PX_PHYSICS_VERSION, *mFoundation, PxTolerancesScale(), recordMemoryAllocations, mProfileZoneManager );
+    if(!mPhysics)
+        fatalError("PxCreatePhysics failed!");
+
+    // mCooking = PxCreateCooking(PX_PHYSICS_VERSION, *mFoundation, PxCookingParams());
+    // if (!mCooking)
+    //     fatalError("PxCreateCooking failed!");
+
+    if (!PxInitExtensions(*mPhysics))
+        fatalError("PxInitExtensions failed!");
 
 
+    
+    PxSceneDesc sceneDesc(mPhysics->getTolerancesScale());
+    sceneDesc.gravity = PxVec3(0.0f, -9.81f, 0.0f);
+    // customizeSceneDesc(sceneDesc);
+    
+    if(!sceneDesc.cpuDispatcher)
+    {
+        mCpuDispatcher = PxDefaultCpuDispatcherCreate(2);
+        if(!mCpuDispatcher)
+            fatalError("PxDefaultCpuDispatcherCreate failed!");
+        sceneDesc.cpuDispatcher    = mCpuDispatcher;
+    }
+    static PxSimulationFilterShader gDefaultFilterShader=PxDefaultSimulationFilterShader;
 
 
+    if(!sceneDesc.filterShader)
+        sceneDesc.filterShader  = gDefaultFilterShader;
+        // fatalError("shader");
+        // sceneDesc.filterShader    =  *gDefaultFilterShader;
+    
+    #ifdef PX_WINDOWS
+    if(!sceneDesc.gpuDispatcher && mCudaContextManager)
+    {
+        mCudaContextManager = PxCreateCudaContextManager(*mFoundation, cudaContextManagerDesc, mProfileZoneManager);
+        if( mCudaContextManager ){
+            if( !mCudaContextManager->contextIsValid() ){
+                mCudaContextManager->release();
+                mCudaContextManager = NULL;
+                fatalError("cuda");
+                return;
+            }
+    
+            if(!sceneDesc.gpuDispatcher){
+                sceneDesc.gpuDispatcher = mCudaContextManager->getGpuDispatcher();
+            }
+        } else {
+            fatalError("cuda");
+            return;
+        }
+    }
+    #endif
+    
+    gScene = mPhysics->createScene(sceneDesc);
+    if (!gScene)
+        fatalError("createScene failed!");
+
+    PxMaterial* mMaterial;
+
+    mMaterial = mPhysics->createMaterial(0.5f, 0.5f, 0.1f);    //static friction, dynamic friction, restitution
+    if(!mMaterial)
+        fatalError("createMaterial failed!");
+    // And add the actor to a scene:
+
+
+    PxRigidStatic* plane = PxCreatePlane(*mPhysics, PxPlane(PxVec3(0,1,0), 0), *mMaterial);
+    if (!plane)
+        fatalError("create shape failed!");
+    gScene->addActor(*plane);
+
+}
+bool advancePhysX(Ogre::Real dt)
+{
+    mAccumulator  += dt;
+    if(mAccumulator < mStepSize)
+        return false;
+
+    mAccumulator -= mStepSize;
+
+    gScene->simulate(mStepSize);
+
+    return true;
+}
+void shutdownPhysX() {
+    
+    mPhysics->release();
+    // Do not forget to release the foundation object as well, but only after all other PhysX modules have been released:
+
+    mFoundation->release();
+}
+
+void fatalError(string error)
+{
+#if OGRE_PLATFORM == OGRE_PLATFORM_WIN32
+    MessageBox( NULL, error.c_str(), "An exception has occured!", MB_OK | MB_ICONERROR | MB_TASKMODAL);
+#else
+    std::cerr << "An exception has occured: " <<
+                error << std::endl;
+#endif
+}
 
 
 //----------------------------------------------
 
-#if OGRE_PLATFORM == OGRE_PLATFORM_WIN32
-#define WIN32_LEAN_AND_MEAN
-#include "windows.h"
-#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -196,8 +270,7 @@ extern "C" {
     {
         // Create application object
         TutorialApplication app;
-        InitPhysX();  //Initialize PhysX then create scene and actors
-
+        initPhysX(false);
         try {
             app.go();
         } catch( Ogre::Exception& e ) {
@@ -208,12 +281,10 @@ extern "C" {
                 e.getFullDescription().c_str() << std::endl;
 #endif
         }
-        //ConnectPVD(); //Uncomment this function to visualize  the simulation in PVD
 
 
-
+        shutdownPhysX();
         //Shut down PhysX
-        ShutdownPhysX(); 
         // _getch();
         return 0;
     }
